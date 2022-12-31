@@ -6,5 +6,5 @@ import lombok.Data;
 public class PointOfInterestCreationRequest {
     private double latitude;
     private double longitude;
-    private double radius;
+    private double areaRange;
 }
