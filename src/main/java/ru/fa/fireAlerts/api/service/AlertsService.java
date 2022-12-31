@@ -13,6 +13,10 @@ import ru.fa.fireAlerts.api.repository.AlertRepository;
 import ru.fa.fireAlerts.api.repository.FireRepository;
 import ru.fa.fireAlerts.api.repository.POIRepository;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -36,16 +40,6 @@ public class AlertsService {
     public PointOfInterest createPOI(PointOfInterestCreationRequest request){
         PointOfInterest poi = new PointOfInterest();
         BeanUtils.copyProperties(request,poi);
-        List<Fire> fireList = fireRepository.findAll().stream()
-                .filter(poi::isFireInRadius).collect(Collectors.toList());
-        poi.setFiresInRange(fireList);
-        if (!fireList.isEmpty()){
-            Alert newAlert = new Alert();
-            newAlert.setArea(poi);
-            newAlert.setStatus(AlertStatus.UNSENT);
-            newAlert.setMessage("New fires in range: " + fireList.size());
-            alertRepository.save(newAlert);
-        }
         return poiRepository.save(poi);
     }
 
@@ -61,10 +55,7 @@ public class AlertsService {
         PointOfInterest poi = optionalPOI.get();
         poi.setLongitude((request.getLongitude()));
         poi.setLatitude(request.getLatitude());
-        poi.setRange(request.getRadius());
-        List<Fire> fireList = fireRepository.findAll().stream()
-                .filter(poi::isFireInRadius).collect(Collectors.toList());
-        poi.setFiresInRange(fireList);
+        poi.setAreaRange(request.getAreaRange());
         return poiRepository.save(poi);
     }
 
@@ -74,17 +65,55 @@ public class AlertsService {
             throw new EntityNotFoundException("Point of interest not present in the database.");
         }
         PointOfInterest poi = optionalPoi.get();
+
         List<Fire> fireList = fireRepository.findAll().stream()
                 .filter(poi::isFireInRadius).collect(Collectors.toList());
         poi.setFiresInRange(fireList);
-        Alert newAlert = new Alert();
-        if (!fireList.isEmpty()){
-            newAlert.setArea(poi);
-            newAlert.setStatus(AlertStatus.UNSENT);
-            newAlert.setMessage("New fires in range: " + fireList.size());
-            alertRepository.save(newAlert);
+
+        LocalDate today = LocalDate.now();
+
+        List<Alert> allAlerts = poi.getAlerts();
+        List<Alert> oldAlerts = new ArrayList<>();
+        for (Alert x: allAlerts) {
+            if (x.getGeneration_date().before(Date.from(today
+                    .atStartOfDay(ZoneId.systemDefault()).toInstant()))){
+                x.setStatus(AlertStatus.OLD);
+                oldAlerts.add(x);
+            }
         }
-        else {throw new EntityNotFoundException("No new alerts for the POI.");}
+
+        if (!oldAlerts.isEmpty()){alertRepository.saveAll(oldAlerts);}
+
+        List<Alert> sentAlerts = poi.getAlerts().stream().filter(alert
+                -> alert.getStatus().equals(AlertStatus.SENT)).toList();
+
+        Alert newAlert = new Alert();
+        if (sentAlerts.isEmpty()) {
+            if (!fireList.isEmpty()) {
+                newAlert.setArea(poi);
+                newAlert.setStatus(AlertStatus.SENT);
+                newAlert.setMessage("New fires in range: " + fireList.size());
+            } else {
+                throw new EntityNotFoundException("No new alerts for the POI.");
+            }
+        }
+        else{
+            for (Alert x:sentAlerts ) {
+                List<Fire> oldFireList = x.getArea().getFiresInRange();
+                if (oldFireList==fireList) {
+                    throw new EntityNotFoundException("No new alerts for the POI.");
+                }
+                else{
+                    List<Fire> intersect = fireList.stream()
+                            .filter(oldFireList::contains).toList(); //o(n^2) cringe but so is java
+                    fireList.removeAll(intersect);
+                    newAlert.setArea(poi);
+                    newAlert.setStatus(AlertStatus.SENT);
+                    newAlert.setMessage("New fires in range: " + fireList.size());
+                }
+                }
+        }
         return alertRepository.save(newAlert);
     }
 }
+

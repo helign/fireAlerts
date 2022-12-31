@@ -15,7 +15,7 @@ import ru.fa.fireAlerts.api.service.AlertsService;
 public class AlertsController {
     private final AlertsService alertsService;
 
-    @GetMapping("/fires/{fireId}")
+    @GetMapping("/{fireId}")
     public ResponseEntity<Fire> findFire(@PathVariable Long fireId){
         return
                 ResponseEntity.ok(alertsService.findFire(fireId));

@@ -36,8 +36,8 @@ public class FirmsCvsFetch {
      *  By all rights this deserves to be refactored.
      *  TODO: Refactor this.
      **/
-    //@Scheduled(cron = "@hourly")
-    @Scheduled(initialDelay = 1000,fixedRate = 5000)
+    @Scheduled(cron = "@hourly")
+    //@Scheduled(initialDelay = 1000,fixedRate = 5000)
     public void fetchRuFireData() throws IOException, InterruptedException, ParseException {
         LocalDate today = LocalDate.now();
 
