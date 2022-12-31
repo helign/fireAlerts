@@ -1,10 +1,10 @@
 package ru.fa.fireAlerts.api.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
@@ -24,14 +24,16 @@ public class PointOfInterest {
             name = "fires_in_range",
             joinColumns = @JoinColumn(name = "area_id"),
             inverseJoinColumns = @JoinColumn(name = "fire_id"))
+    @JsonBackReference
     private List<Fire> firesInRange;
 
     @OneToMany(mappedBy = "area",fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JsonBackReference
     private List<Alert> alerts;
 
     private double longitude;
     private double latitude;
-    private double range; // in km
+    private double areaRange;
     private static double EARTH_EQUATORIAL_RADIUS = 6378.137;
     private static double EARTH_POLAR_RADIUS = 6356.7523142;
     private static double EARTH_ECCENTRICITY_SQUARED = 0.00669437999014;
@@ -74,8 +76,6 @@ public class PointOfInterest {
     private double[] getDegreeLength(double latitude_degree) {
         latitude_degree = this.formatLatitude(latitude_degree);
 
-        double conversion = 1.0; // set for kilometers.
-
         double latitude_length = (Math.PI * EARTH_EQUATORIAL_RADIUS
                 * (1.0 - EARTH_ECCENTRICITY_SQUARED)) / (180.0
                 * Math.pow(1 - (EARTH_ECCENTRICITY_SQUARED
@@ -93,15 +93,12 @@ public class PointOfInterest {
         double h= this.latitude;
         double k= this.longitude;
         double[] ab = this.getDegreeLength(this.latitude);
-        double a = ab[0];
-        double b = ab[1];
+        double a = this.areaRange/ab[0];
+        double b = this.areaRange/ab[1];
         double x= fire.getLatitude();
         double y= fire.getLongitude();
-        boolean inRange = false;
-        if ((Math.pow(x-h,2)/Math.pow(a,2))
-                + (Math.pow(y-k,2)/Math.pow(b,2)) <=1 ){
-            inRange = true;
-        }
+        boolean inRange = (Math.pow(x - h, 2) / Math.pow(a, 2))
+                + (Math.pow(y - k, 2) / Math.pow(b, 2)) <= 1;
         LocalDate today = LocalDate.now();
         if (fire.getFirms_acq_time()
                 .before(Date.from(today
@@ -109,8 +106,6 @@ public class PointOfInterest {
             inRange = false;
         }
         return inRange;
-
-
     }
 
 }
